@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Authentication test page</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="/script.js"></script>
+</head>
+<body>
+<form>
+  login: <input id="login" type="text" name="login">
+  <button id="register_button" type="button" onclick="authenticate()">Authenticate</button>
+</form>
+<script>
+  function performGetCredReq(getCredReq) {
+    getCredReq.challenge = base64UrlDecode(getCredReq.challenge);
+
+    //Base64url decoding of id in allowCredentials
+    if (getCredReq.allowCredentials instanceof Array) {
+      for (let i of getCredReq.allowCredentials) {
+        if ('id' in i) {
+          i.id = base64UrlDecode(i.id);
+        }
+      }
+    }
+
+    delete getCredReq.status;
+    delete getCredReq.errorMessage;
+
+    removeEmpty(getCredReq);
+
+    return getCredReq;
+  }
+
+  function authenticate() {
+    const login = document.getElementById('login').value;
+    if (login == null || login === '') {
+      alert('no login');
+      return;
+    }
+
+    axios.post('/authentication', { login: login })
+      .then((res) => {
+        const sessionId = res.headers['fido2-session-id']
+        return navigator.credentials.get({ publicKey: performGetCredReq(res.data) }).then((raw) => {
+          let assertion = {
+            rawId: base64UrlEncode(raw.rawId),
+            id: base64UrlEncode(raw.rawId),
+            response: {
+              clientDataJSON: base64UrlEncode(raw.response.clientDataJSON),
+              userHandle: base64UrlEncode(raw.response.userHandle),
+              signature: base64UrlEncode(raw.response.signature),
+              authenticatorData: base64UrlEncode(raw.response.authenticatorData)
+            },
+            type: raw.type,
+          };
+
+          if (raw.getClientExtensionResults) {
+            assertion.extensions = raw.getClientExtensionResults();
+          }
+
+          axios.post('/assertion', assertion, { headers: { 'fido2-session-id': sessionId } })
+            .then((res) => {
+              console.log(res);
+              alert(`authentication success`);
+            })
+            .catch((e) => {
+              console.error(e);
+              alert('authentication failed');
+            });
+        });
+      })
+      .catch((e) => {
+        console.error(e);
+      });
+  }
+</script>
+</body>
+</html>

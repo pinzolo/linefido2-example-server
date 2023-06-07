@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Registration test page</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="/script.js"></script>
+</head>
+<body>
+<form>
+  login: <input id="login" type="text" name="login">
+  <button id="register_button" type="button" onclick="register()">Register</button>
+</form>
+<script>
+  function performMakeCredReq(makeCredReq) {
+    makeCredReq.challenge = base64UrlDecode(makeCredReq.challenge);
+    makeCredReq.user.id = base64UrlDecode(makeCredReq.user.id);
+
+    //Base64url decoding of id in excludeCredentials
+    if (makeCredReq.excludeCredentials instanceof Array) {
+      for (let i of makeCredReq.excludeCredentials) {
+        if ('id' in i) {
+          i.id = base64UrlDecode(i.id);
+        }
+      }
+    }
+
+    delete makeCredReq.status;
+    delete makeCredReq.errorMessage;
+    // delete makeCredReq.authenticatorSelection;
+
+    removeEmpty(makeCredReq);
+
+    return makeCredReq;
+  }
+
+  function register() {
+    const login = document.getElementById('login').value;
+    if (login == null || login === '') {
+      alert('no login');
+      return;
+    }
+
+    axios.post('/registration', { login: login })
+      .then((res) => {
+        const sessionId = res.headers['fido2-session-id'];
+        console.log(sessionId);
+        return navigator.credentials.create({ publicKey: performMakeCredReq(res.data) }).then((raw) => {
+          let attestation = {
+            rawId: base64UrlEncode(raw.rawId),
+            id: base64UrlEncode(raw.id),
+            response: {
+              clientDataJSON: base64UrlEncode(raw.response.clientDataJSON),
+              attestationObject: base64UrlEncode(raw.response.attestationObject)
+            },
+            type: raw.type,
+          }
+
+          if (raw.getClientExtensionResults) {
+            attestation.extensions = raw.getClientExtensionResults();
+          }
+
+          if (typeof raw.response.getTransports === 'function') {
+            attestation.response.transports = raw.response.getTransports();
+          }
+
+          axios.post('/attestation', attestation, { headers: { 'fido2-session-id': sessionId } })
+            .then((res) => {
+              console.log(res);
+              alert('registration success');
+            })
+            .catch((e) => {
+              console.error(e);
+              alert('registration failed');
+            });
+        });
+      })
+      .catch((e) => {
+        console.error(e);
+      });
+  }
+</script>
+</body>
+</html>
