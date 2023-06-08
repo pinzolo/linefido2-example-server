@@ -25,7 +25,7 @@ func main() {
 	e.POST("/attestation", handleAttestation)
 	e.POST("/authentication", handleAuthentication)
 	e.POST("/assertion", handleAssertion)
-	e.File("script.js", "./assets/script.js")
+	e.File("/script.js", "./assets/script.js")
 	e.File("/registration", "./assets/reg.html")
 	e.File("/authentication", "./assets/auth.html")
 
